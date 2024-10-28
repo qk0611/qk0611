@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .chat-container { display: flex; justify-content: space-around; margin-top: 20px; }
+        .chat-box { width: 45%; border: 1px solid #ccc; padding: 10px; }
+        .chat-log { height: 300px; border: 1px solid #000; overflow-y: auto; margin-bottom: 10px; padding: 5px; }
+        input, button { margin-top: 10px; width: 100%; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Secure Chat with Encryption</h1>
+    <div class="chat-container">
+        <!-- Отправитель -->
+        <div class="chat-box">
+            <h2>Отправитель</h2>
+            <div id="senderLog" class="chat-log"></div>
+            <input type="text" id="senderMessage" placeholder="Введите сообщение" />
+            <button onclick="sendMessage()">Отправить</button>
+        </div>
+        <!-- Получатель -->
+        <div class="chat-box">
+            <h2>Получатель</h2>
+            <div id="receiverLog" class="chat-log"></div>
+            <button onclick="receiveMessage()">Получить сообщение</button>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        // Инициализация elliptic для работы с эллиптическими кривыми
+        const EC = elliptic.ec;
+        const ec = new EC('secp256k1');
+
+        // Генерация ключевой пары для отправителя и получателя
+        const senderKeyPair = ec.genKeyPair();
+        const receiverKeyPair = ec.genKeyPair();
+
+        // Публичный ключ отправителя и получателя
+        const receiverPublicKey = receiverKeyPair.getPublic('hex');
+        const receiverPrivateKey = receiverKeyPair.getPrivate('hex');
+
+        let encryptedMessage = '';
+
+        // Функция для отправки сообщения (шифрование с использованием публичного ключа получателя)
+        function sendMessage() {
+            const message = document.getElementById('senderMessage').value;
+            if (!message) {
+                alert('Введите сообщение');
+                return;
+            }
+
+            // Шифрование сообщения
+            const sharedSecret = senderKeyPair.derive(ec.keyFromPublic(receiverPublicKey, 'hex').getPublic());
+            const aesKey = CryptoJS.SHA256(sharedSecret.toString(16)).toString();
+            encryptedMessage = CryptoJS.AES.encrypt(message, aesKey).toString();
+
+            // Отображение зашифрованного сообщения в окне отправителя
+            document.getElementById('senderLog').innerHTML += `<p><strong>Отправлено (зашифровано):</strong> ${encryptedMessage}</p>`;
+            document.getElementById('senderMessage').value = '';
+        }
+
+        // Функция для получения сообщения (расшифровка с использованием приватного ключа получателя)
+        function receiveMessage() {
+            if (!encryptedMessage) {
+                alert('Нет новых сообщений');
+                return;
+            }
+
+            // Расшифровка сообщения
+            const sharedSecret = receiverKeyPair.derive(senderKeyPair.getPublic());
+            const aesKey = CryptoJS.SHA256(sharedSecret.toString(16)).toString();
+            const decryptedMessage = CryptoJS.AES.decrypt(encryptedMessage, aesKey).toString(CryptoJS.enc.Utf8);
+
+            // Отображение расшифрованного сообщения в окне получателя
+            document.getElementById('receiverLog').innerHTML += `<p><strong>Получено (расшифровано):</strong> ${decryptedMessage}</p>`;
+        }
+    </script>
+</body>
+</html>
+
